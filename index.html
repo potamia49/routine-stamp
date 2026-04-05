@@ -76,7 +76,6 @@ body { font-family: 'Noto Sans KR', sans-serif; background: var(--bg); color: va
 .routine-edit-input { flex: 1; font-size: 15px; font-family: inherit; color: var(--text); background: transparent; border: none; border-bottom: 1.5px solid var(--accent); outline: none; padding: 2px 0; }
 .card-actions { display: flex; gap: 4px; }
 .btn-sm { background: transparent; border: 0.5px solid var(--border-md); border-radius: 6px; padding: 5px 10px; font-size: 12px; font-family: inherit; cursor: pointer; color: var(--text2); -webkit-tap-highlight-color: transparent; }
-.btn-del:active { border-color: var(--danger); color: var(--danger); }
 .btn-save { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 5px 12px; font-size: 12px; font-family: inherit; cursor: pointer; }
 .empty-card { border: 0.5px dashed var(--border-md); border-radius: var(--radius); padding: 28px; text-align: center; color: var(--text3); font-size: 14px; line-height: 1.6; }
 .history-item { margin-bottom: 16px; }
@@ -127,7 +126,7 @@ body { font-family: 'Noto Sans KR', sans-serif; background: var(--bg); color: va
 </div>
 <div class="toast" id="toast"></div>
 <script>
-const API = 'https://script.google.com/macros/s/AKfycbzl7rOLUDRRt8nNUC1Z8uqJgxHfdPtvYlJMe_9yoDVurQe5380I_069LtBNOlV6u6U/exec';
+const API = 'https://script.google.com/macros/s/AKfycby0Ll4hQ5euCDaT4FGyAg21INvTODkh4QpscEi8qSRLmi7Hcc5QvQEk03FTUq2vE-A/exec';
 let state = { routines: [], stamps: {} };
 
 function todayStr() {
@@ -170,7 +169,13 @@ async function loadFromServer() {
   try {
     const data = await api({ action: 'load' });
     state.routines = data.routines || [];
-    state.stamps = data.stamps || {};
+    const raw = data.stamps || {};
+    const fixed = {};
+    for (const key of Object.keys(raw)) {
+      const clean = fixDate(key);
+      fixed[clean] = raw[key];
+    }
+    state.stamps = fixed;
     setSyncStatus('ok', '동기화됨');
     localStorage.setItem('routine-backup', JSON.stringify(state));
   } catch(e) {
@@ -181,6 +186,15 @@ async function loadFromServer() {
   }
   document.getElementById('loading-overlay').classList.add('hidden');
   render();
+}
+
+function fixDate(str) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  return str;
 }
 
 async function saveRoutines() {
@@ -198,7 +212,7 @@ async function saveRoutines() {
 async function saveStamp(rid, day, value) {
   setSyncStatus('syncing', '저장 중...');
   try {
-    await api({ action: 'toggleStamp', data: JSON.stringify({ id: rid, day, value }) });
+    await api({ action: 'toggleStamp', data: JSON.stringify({ id: rid, day: day, value: value }) });
     localStorage.setItem('routine-backup', JSON.stringify(state));
     setSyncStatus('ok', '동기화됨');
   } catch(e) {
@@ -314,7 +328,7 @@ function render(editingId) {
         (isEd
           ? '<button class="btn-save" onclick="saveEdit(\'' + r.id + '\')">저장</button>'
           : '<button class="btn-sm" onclick="startEdit(\'' + r.id + '\')">수정</button>' +
-            '<button class="btn-sm btn-del" onclick="deleteRoutine(\'' + r.id + '\')">삭제</button>') +
+            '<button class="btn-sm" onclick="deleteRoutine(\'' + r.id + '\')">삭제</button>') +
         '</div></div>';
     }).join('');
     if (editingId) {
